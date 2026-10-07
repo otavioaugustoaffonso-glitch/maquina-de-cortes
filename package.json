@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "worker": "tsx worker/index.ts",
+    "worker:dev": "tsx watch worker/index.ts",
+    "test": "vitest run",
+    "test:e2e": "tsx scripts/e2e-local.ts",
+    "typecheck": "tsc --noEmit",
+    "fonts": "bash worker/fonts/download.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -14,11 +20,13 @@
     "@supabase/supabase-js": "^2.117.3",
     "archiver": "^8.0.0",
     "clsx": "^2.1.1",
+    "dotenv": "^18.0.6",
     "lucide-react": "^1.52.0",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
+    "tsx": "^4.23.15",
     "tus-js-client": "^4.3.1",
     "zod": "^4.6.5"
   },
@@ -28,11 +36,9 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^18.0.6",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
-    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.3"
   },

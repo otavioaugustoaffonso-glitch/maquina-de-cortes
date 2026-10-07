@@ -51,13 +51,13 @@ def main() -> None:
         if not ok:
             break
         h, w = frame.shape[:2]
-        scale = 480.0 / w if w > 480 else 1.0
+        scale = 640.0 / w if w > 640 else 1.0
         small = cv2.resize(frame, (int(w * scale), int(h * scale))) if scale != 1.0 else frame
-        gray = cv2.equalizeHist(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY))
-        min_side = max(24, int(gray.shape[0] * 0.07))
-        faces = frontal.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=6, minSize=(min_side, min_side))
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        min_side = max(20, int(gray.shape[0] * 0.05))
+        faces = frontal.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(min_side, min_side))
         if len(faces) == 0:
-            faces = profile.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=6, minSize=(min_side, min_side))
+            faces = profile.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(min_side, min_side))
         gw, gh = float(gray.shape[1]), float(gray.shape[0])
         norm = [
             [round((x + fw / 2) / gw, 4), round((y + fh / 2) / gh, 4), round(fw / gw, 4), round(fh / gh, 4)]

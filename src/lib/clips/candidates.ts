@@ -31,7 +31,7 @@ export function finalizeCandidates(
   videoDuration: number,
   opts: { maxClips?: number; maxOverlap?: number } = {},
 ): ClipCandidate[] {
-  const { maxClips = 30, maxOverlap = 0.5 } = opts;
+  const { maxClips = 30, maxOverlap = 0.3 } = opts;
   const scored: ClipCandidate[] = [];
 
   for (const c of raw) {
