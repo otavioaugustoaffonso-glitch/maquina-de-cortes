@@ -1,0 +1,16 @@
+{
+  "name": "maquina-de-cortes-navegador",
+  "private": true,
+  "type": "module",
+  "description": "Edição 100% no navegador: transcrição (Whisper) e cortes gerados no próprio computador do usuário, publicada como artefato.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "4.3.1",
+    "@vladmandic/face-api": "^1.7.15",
+    "fix-webm-duration": "^1.0.6",
+    "jszip": "^3.10.1",
+    "onnxruntime-web": "1.31.0-dev.20260914-8d85527a0"
+  }
+}
