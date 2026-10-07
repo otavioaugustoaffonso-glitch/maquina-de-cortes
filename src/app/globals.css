@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-bg: #07070b;
+  --color-surface: #0f0f16;
+  --color-surface-2: #161621;
+  --color-surface-3: #1e1e2c;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+  --color-fg: #f4f4f7;
+  --color-muted: #9b9bb0;
+  --color-subtle: #6b6b80;
+  --color-brand: #8b5cf6;
+  --color-brand-2: #22d3ee;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
   }
 }
 
+:root {
+  color-scheme: dark;
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fundo com brilho sutil — transmite "tecnologia" sem poluir */
+.bg-glow {
+  background:
+    radial-gradient(60rem 30rem at 15% -10%, rgb(139 92 246 / 0.16), transparent 60%),
+    radial-gradient(50rem 26rem at 95% 0%, rgb(34 211 238 / 0.09), transparent 60%),
+    var(--color-bg);
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, #c4b5fd 0%, #8b5cf6 40%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Scrollbar discreta */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+}
+
+input[type="range"] {
+  accent-color: var(--color-brand);
 }
