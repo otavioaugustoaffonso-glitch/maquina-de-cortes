@@ -2,8 +2,8 @@
  * Web Worker de transcrição: Whisper (open source) rodando no navegador via
  * transformers.js + ONNX Runtime (WebAssembly). Nada sai do computador do usuário.
  *
- * Os modelos são publicados junto com a página em pedaços de até 14 MB (limite
- * por arquivo do artefato) e remontados aqui por um fetch personalizado.
+ * Os modelos são publicados junto com a página em partes de texto base64 (artefatos
+ * só servem tipos web, até 16 MB por arquivo) e remontados aqui por um fetch personalizado.
  */
 import { env, pipeline } from "@huggingface/transformers";
 
@@ -31,19 +31,23 @@ function manifest(): Promise<Manifest> {
   return manifestPromise;
 }
 
-async function fetchWithProgress(url: string): Promise<Blob> {
+/** Baixa uma parte (texto base64) e devolve os bytes originais. */
+async function fetchPart(url: string): Promise<Uint8Array> {
   const res = await fetch(url);
-  if (!res.ok || !res.body) throw new Error(`Falha ao baixar ${url} (HTTP ${res.status})`);
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    downloadedBytes += value.byteLength;
-    if (totalBytes) post({ type: "status", stage: "download", progress: Math.min(1, downloadedBytes / totalBytes) });
-  }
-  return new Blob(chunks as BlobPart[]);
+  if (!res.ok) throw new Error(`Falha ao baixar o modelo (HTTP ${res.status})`);
+  const bytes = base64ToBytes(await res.text());
+  downloadedBytes += bytes.byteLength;
+  if (totalBytes) post({ type: "status", stage: "download", progress: Math.min(1, downloadedBytes / totalBytes) });
+  return bytes;
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const fromBase64 = (Uint8Array as unknown as { fromBase64?: (s: string) => Uint8Array }).fromBase64;
+  if (fromBase64) return fromBase64(b64.trim());
+  const bin = atob(b64.trim());
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 /** fetch usado pelo transformers.js: remonta arquivos divididos em partes. */
@@ -67,8 +71,8 @@ async function partsFetch(input: RequestInfo | URL, init?: RequestInit): Promise
     assembled.set(
       url,
       (async () => {
-        const parts: Blob[] = [];
-        for (let i = 0; i < entry.parts; i++) parts.push(await fetchWithProgress(`${url}.part${i}`));
+        const parts: Uint8Array[] = [];
+        for (let i = 0; i < entry.parts; i++) parts.push(await fetchPart(`${url}.part${i}.txt`));
         return new Blob(parts as BlobPart[]);
       })(),
     );

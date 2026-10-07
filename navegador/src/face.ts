@@ -8,10 +8,14 @@ import type { TimeRange } from "@/lib/clips/timing";
 import type { Framing } from "@/lib/types";
 
 type FaceApi = {
-  nets: { tinyFaceDetector: { loadFromUri(uri: string): Promise<void>; isLoaded: boolean } };
+  nets: { tinyFaceDetector: { loadFromWeightMap(map: unknown): void; isLoaded: boolean } };
   TinyFaceDetectorOptions: new (o: { inputSize: number; scoreThreshold: number }) => unknown;
   detectAllFaces(input: HTMLCanvasElement, options: unknown): Promise<{ score: number; box: { x: number; y: number; width: number; height: number } }[]>;
-  tf: { setBackend(b: string): Promise<boolean>; ready(): Promise<void> };
+  tf: {
+    setBackend(b: string): Promise<boolean>;
+    ready(): Promise<void>;
+    io: { decodeWeights(buf: ArrayBuffer, specs: unknown[]): unknown };
+  };
 };
 
 let api: Promise<FaceApi> | null = null;
@@ -26,7 +30,16 @@ function loadApi(): Promise<FaceApi> {
       await fa.tf.setBackend("cpu");
     }
     await fa.tf.ready();
-    await fa.nets.tinyFaceDetector.loadFromUri(new URL("./face/", import.meta.url).href);
+    // pesos publicados como base64 (artefatos não servem .bin)
+    const base = new URL("./face/", import.meta.url);
+    const [manifest, b64] = await Promise.all([
+      fetch(new URL("weights_manifest.json", base)).then((r) => r.json() as Promise<{ weights: unknown[] }[]>),
+      fetch(new URL("tiny_face_detector_model.bin.txt", base)).then((r) => r.text()),
+    ]);
+    const bin = atob(b64.trim());
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    fa.nets.tinyFaceDetector.loadFromWeightMap(fa.tf.io.decodeWeights(bytes.buffer, manifest[0].weights));
     return fa;
   })();
   return api;

@@ -10,7 +10,10 @@ import * as esbuild from "esbuild";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(HERE, "dist");
 const CACHE = path.join(HERE, ".cache");
-const PART_SIZE = 14_000_000;
+// Artefatos só servem tipos web (sem .onnx/.bin): binários vão em base64 dentro de .txt,
+// em partes de 10 MB (~13,4 MB de texto, abaixo do limite de 16 MB por arquivo).
+const PART_SIZE = 10_000_000;
+const writeB64 = (file, buf) => fs.writeFileSync(file, Buffer.from(buf).toString("base64"));
 const MODEL_PKG = "sts-whisper-base@1.0.0"; // Xenova/whisper-base (Apache-2.0) empacotado no npm
 const MODEL = "whisper-base";
 
@@ -60,10 +63,10 @@ const copyTree = (from, rel) => {
     const out = path.join(DIST, relPath);
     fs.mkdirSync(path.dirname(out), { recursive: true });
     const size = fs.statSync(abs).size;
-    if (size > PART_SIZE) {
+    if (entry.name.endsWith(".onnx")) {
       const buf = fs.readFileSync(abs);
       const parts = Math.ceil(size / PART_SIZE);
-      for (let i = 0; i < parts; i++) fs.writeFileSync(`${out}.part${i}`, buf.subarray(i * PART_SIZE, (i + 1) * PART_SIZE));
+      for (let i = 0; i < parts; i++) writeB64(`${out}.part${i}.txt`, buf.subarray(i * PART_SIZE, (i + 1) * PART_SIZE));
       manifest.files[relPath] = { parts, size };
     } else {
       fs.copyFileSync(abs, out);
@@ -77,9 +80,8 @@ fs.writeFileSync(path.join(DIST, "models/manifest.json"), JSON.stringify(manifes
 const fa = path.join(HERE, "node_modules/@vladmandic/face-api");
 fs.copyFileSync(path.join(fa, "dist/face-api.esm.js"), path.join(DIST, "face-api.esm.js"));
 fs.mkdirSync(path.join(DIST, "face"), { recursive: true });
-for (const f of ["tiny_face_detector_model-weights_manifest.json", "tiny_face_detector_model.bin"]) {
-  fs.copyFileSync(path.join(fa, "model", f), path.join(DIST, "face", f));
-}
+fs.copyFileSync(path.join(fa, "model/tiny_face_detector_model-weights_manifest.json"), path.join(DIST, "face/weights_manifest.json"));
+writeB64(path.join(DIST, "face/tiny_face_detector_model.bin.txt"), fs.readFileSync(path.join(fa, "model/tiny_face_detector_model.bin")));
 
 // 5. Página
 fs.copyFileSync(path.join(HERE, "src/index.html"), path.join(DIST, "index.html"));
@@ -93,6 +95,9 @@ const walk = (d) => {
   }
 };
 walk(DIST);
-const big = list.filter(([, s]) => s > 15 * 1024 * 1024);
-if (big.length) throw new Error(`Arquivos acima de 15 MB: ${big.map(([f]) => f).join(", ")}`);
+const big = list.filter(([f, s]) => s > (f.endsWith(".wasm") ? 15 : 16) * 1024 * 1024);
+if (big.length) throw new Error(`Arquivos acima do limite: ${big.map(([f]) => f).join(", ")}`);
+const SERVED = /\.(html|js|mjs|wasm|json|txt)$/;
+const bad = list.filter(([f]) => !SERVED.test(f));
+if (bad.length) throw new Error(`Tipos não servidos por artefatos: ${bad.map(([f]) => f).join(", ")}`);
 console.log(`dist pronto: ${list.length} arquivos, ${(list.reduce((a, [, s]) => a + s, 0) / 1e6).toFixed(1)} MB`);
