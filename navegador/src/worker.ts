@@ -5,12 +5,12 @@
  * Os modelos são publicados junto com a página em partes de texto base64 (artefatos
  * só servem tipos web, até 16 MB por arquivo) e remontados aqui por um fetch personalizado.
  */
-import { env, pipeline } from "@huggingface/transformers";
+import { env, pipeline, WhisperTextStreamer } from "@huggingface/transformers";
 
 type Manifest = { files: Record<string, { parts: number; size: number }> };
 type InMsg = { type: "transcribe"; audio: Float32Array; language: string | null };
 export type OutMsg =
-  | { type: "status"; stage: "download" | "load" | "transcribe"; progress: number; detail?: string }
+  | { type: "status"; stage: "download" | "prepare" | "load" | "transcribe"; progress: number; done?: number; total?: number }
   | { type: "result"; text: string; chunks: { text: string; timestamp: [number, number | null] }[] }
   | { type: "error"; message: string };
 
@@ -38,6 +38,8 @@ async function fetchPart(url: string): Promise<Uint8Array> {
   const bytes = base64ToBytes(await res.text());
   downloadedBytes += bytes.byteLength;
   if (totalBytes) post({ type: "status", stage: "download", progress: Math.min(1, downloadedBytes / totalBytes) });
+  // download terminado: a montagem do modelo (pode levar um tempo no celular) começa agora
+  if (totalBytes && downloadedBytes >= totalBytes) post({ type: "status", stage: "prepare", progress: 0 });
   return bytes;
 }
 
@@ -97,10 +99,12 @@ onnx.wasm.wasmPaths = {
 onnx.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
 onnx.wasm.proxy = false;
 
-type Transcriber = (
+type Transcriber = ((
   audio: Float32Array,
   opts: Record<string, unknown>,
-) => Promise<{ text: string; chunks?: { text: string; timestamp: [number, number | null] }[] }>;
+) => Promise<{ text: string; chunks?: { text: string; timestamp: [number, number | null] }[] }>) & {
+  tokenizer: ConstructorParameters<typeof WhisperTextStreamer>[0];
+};
 let transcriber: Promise<Transcriber> | null = null;
 
 async function load(): Promise<Transcriber> {
@@ -124,10 +128,32 @@ self.onmessage = async (ev: MessageEvent<InMsg>) => {
     // Processa em janelas de 30 s para mostrar progresso e não travar
     const SR = 16000;
     const WINDOW = 30 * SR;
+    const total = msg.audio.length / SR;
     const chunks: { text: string; timestamp: [number, number | null] }[] = [];
     const texts: string[] = [];
+    let offset = 0;
+    let lastPost = 0;
+    // sinal de vida a cada token gerado (no celular uma janela pode levar mais de um minuto)
+    const tick = (inWindow: number) => {
+      const now = Date.now();
+      if (now - lastPost < 1000) return;
+      lastPost = now;
+      const done = Math.min(total, offset + inWindow);
+      post({ type: "status", stage: "transcribe", progress: done / total, done, total });
+    };
+    let windowPos = 0;
+    const streamer = new WhisperTextStreamer(t.tokenizer, {
+      skip_prompt: true,
+      token_callback_function: () => tick(windowPos),
+      on_chunk_end: (s: number) => {
+        windowPos = Math.max(windowPos, s);
+        tick(windowPos);
+      },
+    });
     for (let start = 0; start < msg.audio.length; start += WINDOW) {
       const slice = msg.audio.subarray(start, Math.min(msg.audio.length, start + WINDOW));
+      offset = start / SR;
+      windowPos = 0;
       // pula janelas praticamente silenciosas (economiza tempo)
       let energy = 0;
       for (let i = 0; i < slice.length; i += 16) energy += slice[i] * slice[i];
@@ -137,15 +163,19 @@ self.onmessage = async (ev: MessageEvent<InMsg>) => {
         task: "transcribe",
         return_timestamps: true,
         chunk_length_s: 30,
+        // 30 s de fala rápida cabem em ~200 tokens; o limite evita laços de repetição que travam
+        max_new_tokens: 224,
+        streamer,
       });
-      const offset = start / SR;
       for (const c of out.chunks ?? []) {
         const s = (c.timestamp[0] ?? 0) + offset;
         const e = c.timestamp[1] == null ? Math.min(offset + slice.length / SR, s + 5) : c.timestamp[1] + offset;
         if (c.text.trim()) chunks.push({ text: c.text.trim(), timestamp: [s, e] });
       }
       texts.push(out.text.trim());
-      post({ type: "status", stage: "transcribe", progress: Math.min(1, (start + WINDOW) / msg.audio.length) });
+      const done = Math.min(total, offset + slice.length / SR);
+      lastPost = Date.now();
+      post({ type: "status", stage: "transcribe", progress: done / total, done, total });
     }
     post({ type: "result", text: texts.join(" "), chunks });
   } catch (e) {

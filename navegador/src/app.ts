@@ -185,21 +185,70 @@ async function decodeWholeFile(file: File): Promise<Float32Array> {
 }
 
 let worker: Worker | null = null;
+// Sem nenhum sinal do transcritor por este tempo, consideramos que travou (no celular,
+// geralmente o sistema encerrou o processamento por falta de memória).
+const STALL_MS = { load: 5 * 60_000, transcribe: 3 * 60_000 };
+
 function transcribe(audio: Float32Array, language: string | null): Promise<Extract<OutMsg, { type: "result" }>> {
   worker ??= new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+  const w = worker;
   return new Promise((resolve, reject) => {
-    worker!.onmessage = (e: MessageEvent<OutMsg>) => {
+    let phase: keyof typeof STALL_MS = "load";
+    let startedAt = 0;
+    let timer = 0;
+    const fail = (err: Error) => {
+      clearTimeout(timer);
+      w.terminate(); // um transcritor travado não volta: o próximo começa do zero
+      if (worker === w) worker = null;
+      reject(err);
+    };
+    const arm = () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(
+        () =>
+          fail(
+            new Error(
+              phase === "load"
+                ? "O modelo de transcrição não terminou de carregar. Verifique a internet, feche outros apps e tente de novo."
+                : "A transcrição parou de responder. No celular isso costuma ser falta de memória: feche outros apps, mantenha a tela ligada e tente um vídeo mais curto (ou use o computador).",
+            ),
+          ),
+        STALL_MS[phase],
+      );
+    };
+    arm();
+    w.onmessage = (e: MessageEvent<OutMsg>) => {
       const m = e.data;
       if (m.type === "status") {
         if (m.stage === "download") setStep(2, m.progress, "Baixando o modelo de transcrição (só na primeira vez, ~80 MB)...");
-        else if (m.stage === "load") setStep(3, 0, "Transcrevendo a fala...");
-        else setStep(3, m.progress, "Transcrevendo a fala...");
-      } else if (m.type === "result") resolve(m);
-      else reject(new Error(m.message));
+        else if (m.stage === "prepare") setStep(2, 1, "Preparando o modelo de transcrição (pode levar até 1 minuto no celular)...");
+        else if (m.stage === "load") {
+          phase = "transcribe";
+          startedAt = performance.now();
+          setStep(3, 0, "Transcrevendo a fala... (a primeira parte é a mais demorada)");
+        } else {
+          phase = "transcribe";
+          setStep(3, m.progress, transcribeMessage(m.done ?? 0, m.total ?? 0, startedAt));
+        }
+        arm();
+      } else {
+        clearTimeout(timer);
+        if (m.type === "result") resolve(m);
+        else reject(new Error(m.message));
+      }
     };
-    worker!.onerror = (e) => reject(new Error(`Falha no transcritor: ${e.message}`));
-    worker!.postMessage({ type: "transcribe", audio, language }, [audio.buffer]);
+    w.onerror = (e) => fail(new Error(`Falha no transcritor: ${e.message || "o navegador encerrou o processamento (provável falta de memória)"}`));
+    w.postMessage({ type: "transcribe", audio, language }, [audio.buffer]);
   });
+}
+
+function transcribeMessage(done: number, total: number, startedAt: number): string {
+  const base = `Transcrevendo a fala: ${formatDuration(done)} de ${formatDuration(total)}`;
+  const elapsed = (performance.now() - startedAt) / 1000;
+  if (!startedAt || done < 15 || elapsed < 20) return `${base}...`;
+  const left = ((total - done) * elapsed) / done;
+  const mins = Math.max(1, Math.round(left / 60));
+  return `${base} · faltam ~${mins} min`;
 }
 
 /** Distribui as palavras de cada trecho transcrito ao longo do seu tempo. */
