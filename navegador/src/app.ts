@@ -3,7 +3,7 @@
  * Fluxo: arquivo -> áudio 16 kHz -> Whisper (worker) -> escolha dos melhores
  * trechos (regras locais ou Claude, opcional) -> cortes 9:16 com legendas
  * gravados no próprio navegador -> download.
- * O vídeo nunca sai do computador do usuário.
+ * O vídeo nunca sai do aparelho do usuário (computador ou celular).
  */
 import fixWebmDuration from "fix-webm-duration";
 import JSZip from "jszip";
@@ -363,6 +363,7 @@ async function start() {
   if (!file) return;
   ensureAudioGraph(); // precisa acontecer no clique (política de áudio dos navegadores)
   state.phase = "working";
+  const release = await keepScreenOn();
   state.clips = [];
   state.notice = "";
   renderAll();
@@ -400,7 +401,24 @@ async function start() {
     state.phase = "error";
     state.message = e instanceof Error ? e.message : String(e);
   }
+  release();
   renderAll();
+}
+
+/** Evita que a tela do celular apague no meio do processamento (a gravação pausa com a página oculta). */
+async function keepScreenOn(): Promise<() => void> {
+  type Lock = { release(): Promise<void> };
+  const wl = (navigator as unknown as { wakeLock?: { request(t: "screen"): Promise<Lock> } }).wakeLock;
+  if (!wl) return () => {};
+  let lock: Lock | null = null;
+  const acquire = () => wl.request("screen").then((l) => (lock = l)).catch(() => {});
+  const onVisible = () => document.visibilityState === "visible" && state.phase === "working" && void acquire();
+  await acquire();
+  document.addEventListener("visibilitychange", onVisible);
+  return () => {
+    document.removeEventListener("visibilitychange", onVisible);
+    void lock?.release().catch(() => {});
+  };
 }
 
 // ---------------------------------------------------------------- downloads
@@ -473,7 +491,7 @@ function renderSettings() {
       sample
         ? `<label class="field wide toggle"><input type="checkbox" id="claude" ${s.useClaude ? "checked" : ""}>
              <span><strong>Usar a IA do Claude para escolher os cortes</strong><br>
-             <small>Melhores títulos e ganchos. Envia só o texto da transcrição e usa o seu plano Claude (sem cobrança extra no plano; pode contar no seu limite de uso). Desligado = regras automáticas, tudo no seu computador.</small></span></label>`
+             <small>Melhores títulos e ganchos. Envia só o texto da transcrição e usa o seu plano Claude (sem cobrança extra no plano; pode contar no seu limite de uso). Desligado = regras automáticas, tudo no seu aparelho.</small></span></label>`
         : ""
     }`;
   const bind = (id: string, key: keyof Settings, num = false) =>
@@ -499,12 +517,20 @@ function renderSettings() {
   });
 }
 
+const TOUCH = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
 function renderDrop() {
   const f = state.file;
   const busy = state.phase === "working";
   $("#drop-file").innerHTML = f
     ? `<strong>${esc(f.name)}</strong><span>${fmtBytes(f.size)}${state.duration ? ` · ${formatDuration(state.duration)}` : ""}</span>`
-    : `<strong>Arraste o vídeo aqui</strong><span>ou clique para escolher · MP4, MOV, WEBM · até 2 GB</span>`;
+    : `<strong>Escolha o vídeo</strong><span>${
+        TOUCH ? "Toque no botão e pegue o vídeo da Galeria ou dos Arquivos do celular" : "Clique no botão ou arraste o vídeo para cá"
+      } · MP4, MOV, WEBM · até 2 GB</span>`;
+  const pick = $("#pick");
+  pick.textContent = f ? "Escolher outro vídeo" : TOUCH ? "Escolher vídeo do celular" : "Escolher vídeo dos arquivos";
+  pick.classList.toggle("disabled", busy);
+  $<HTMLInputElement>("#file").disabled = busy;
   const go = $<HTMLButtonElement>("#go");
   go.disabled = !f || busy;
   go.textContent = busy ? "Processando..." : state.phase === "done" ? "Processar de novo" : "Gerar cortes";
@@ -529,7 +555,7 @@ function renderProgress() {
   const done = state.phase === "done";
   el.innerHTML = `<p class="msg">${done ? "Pronto! Revise, ajuste e baixe os cortes." : esc(state.message)}</p>
     <ol class="steps">${items}</ol>
-    ${done ? "" : `<p class="hint">Deixe esta aba aberta e visível: a transcrição e a gravação acontecem no seu computador.</p>`}`;
+    ${done ? "" : `<p class="hint">Deixe esta aba aberta e visível: a transcrição e a gravação acontecem no seu aparelho${TOUCH ? " (mantenha a tela ligada)" : ""}.</p>`}`;
 }
 
 function clipCard(c: Clip) {
@@ -645,9 +671,10 @@ function pickFile(f: File | undefined) {
 function init() {
   const drop = $("#drop");
   const input = $<HTMLInputElement>("#file");
-  drop.addEventListener("click", () => state.phase !== "working" && input.click());
-  drop.addEventListener("keydown", (e) => e.key === "Enter" && state.phase !== "working" && input.click());
-  input.addEventListener("change", () => pickFile(input.files?.[0]));
+  input.addEventListener("change", () => {
+    pickFile(input.files?.[0]);
+    input.value = ""; // permite escolher o mesmo arquivo de novo
+  });
   drop.addEventListener("dragover", (e) => {
     e.preventDefault();
     drop.classList.add("over");
@@ -708,7 +735,7 @@ function init() {
   });
 
   if (!format) {
-    state.notice = "Este navegador não consegue gravar vídeo. Use o Chrome, Edge ou Safari atualizados no computador.";
+    state.notice = "Este navegador não consegue gravar vídeo. Use o Chrome (Android/computador), o Safari (iPhone) ou o Edge atualizados.";
   }
   renderSettings();
   renderAll();

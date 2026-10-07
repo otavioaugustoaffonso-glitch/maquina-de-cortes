@@ -43,8 +43,12 @@ h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 700; letter-spacing: -0
 header p { margin: 0; color: var(--muted); max-width: 64ch; }
 .private { display: inline-flex; gap: 6px; align-items: center; font-size: 0.82rem; color: var(--ok); font-weight: 600; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
-#drop { border: 2px dashed var(--line); border-radius: 14px; padding: 34px 16px; text-align: center; cursor: pointer; background: var(--surface-2); transition: border-color .15s, background .15s; }
-#drop:hover, #drop.over, #drop:focus-visible { border-color: var(--accent); background: var(--accent-soft); outline: none; }
+#drop { position: relative; display: grid; gap: 16px; justify-items: center; border: 2px dashed var(--line); border-radius: 14px; padding: 28px 16px; text-align: center; background: var(--surface-2); transition: border-color .15s, background .15s; }
+#drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.pick { font-size: 1.05rem; padding: 15px 24px; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; width: min(100%, 360px); }
+#file:focus-visible + .pick { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pick.disabled { opacity: .45; pointer-events: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 #drop-file { display: grid; gap: 4px; }
 #drop-file strong { font-family: var(--display); font-size: 1.15rem; word-break: break-word; }
 #drop-file span { color: var(--muted); font-size: 0.9rem; }
@@ -122,15 +126,16 @@ footer { color: var(--muted); font-size: 0.85rem; }
 
 <div class="wrap">
   <header>
-    <span class="private">● Seu vídeo não sai do seu computador</span>
+    <span class="private">● Seu vídeo não sai do seu aparelho</span>
     <h1>Máquina de Cortes</h1>
     <p>Coloque um vídeo longo e receba cortes verticais com legendas, prontos para Reels, TikTok e Shorts. A transcrição e a montagem acontecem aqui mesmo, no seu navegador, de graça.</p>
   </header>
 
   <section class="panel" aria-label="Novo vídeo">
-    <div id="drop" role="button" tabindex="0" aria-label="Escolher vídeo">
+    <div id="drop">
       <div id="drop-file"></div>
-      <input id="file" type="file" accept="video/*,.mp4,.mov,.webm,.mkv,.m4v" hidden>
+      <input id="file" type="file" accept="video/*" class="sr-only">
+      <label class="btn pick" for="file" id="pick">Escolher vídeo dos arquivos</label>
     </div>
     <div id="settings"></div>
     <div class="go-row"><button type="button" class="btn" id="go" disabled>Gerar cortes</button></div>
@@ -140,7 +145,7 @@ footer { color: var(--muted); font-size: 0.85rem; }
   <section class="panel" id="progress" aria-live="polite" hidden></section>
   <section id="results" hidden></section>
 
-  <footer>Transcrição com Whisper (open source) rodando no navegador. Use no computador, com o Chrome, Edge ou Safari atualizados. Na primeira vez o modelo de transcrição (~80 MB) é baixado; o tempo de processamento é parecido com a duração do vídeo.</footer>
+  <footer>Transcrição com Whisper (open source) rodando no navegador. Funciona no celular (Chrome no Android, Safari no iPhone) e no computador (Chrome, Edge ou Safari). No celular, mantenha a tela ligada e esta página aberta enquanto processa; é mais lento que no computador. Na primeira vez o modelo de transcrição (~80 MB) é baixado; o tempo de processamento é parecido com a duração do vídeo.</footer>
 </div>
 
 <script type="module" src="app.js"></script>
