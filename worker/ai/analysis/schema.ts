@@ -22,5 +22,3 @@ export const ClipSchema = z.object({
     standalone: z.number(),
   }),
 });
-
-export const AnalysisSchema = z.object({ clips: z.array(ClipSchema) });

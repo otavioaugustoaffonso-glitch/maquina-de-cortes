@@ -23,8 +23,8 @@
                                               │  process_video · render_clip · export_zip │
                                               │      │                    │               │
                                               │      ▼                    ▼               │
-                                              │  API de transcrição   API de LLM          │
-                                              │  (OpenAI/Groq Whisper) (Anthropic Claude) │
+                                              │  faster-whisper        Ollama / regras    │
+                                              │  (local, open source)  (local, open source)│
                                               └───────────────────────────────────────────┘
 ```
 
@@ -37,15 +37,16 @@
 | Autenticação | Supabase Auth via `@supabase/ssr` | Supabase | Cadastro, login, logout, recuperação de senha, sessão em cookies |
 | Filas/background | Tabela `jobs` + `claim_job()` com `FOR UPDATE SKIP LOCKED` | Postgres | Jobs assíncronos, retry exponencial, recuperação de workers mortos |
 | Processamento de vídeo | FFmpeg (libx264, AAC, libass) + OpenCV (Python) | Worker (Docker) | Áudio, proxy, cortes, remoção de pausas, 9:16, legendas, thumbnails |
-| IA | Interfaces `TranscriptionProvider` e `ClipAnalyzer` | Worker | Transcrição com timestamps por palavra; escolha e pontuação dos cortes. Padrão gratuito (faster-whisper local + heurística); Groq/Gemini/Ollama gratuitos; OpenAI/Anthropic pagos atrás da trava `ALLOW_PAID_PROVIDERS` |
+| IA | Interfaces `TranscriptionProvider` e `ClipAnalyzer` | Worker | Transcrição com tempo por palavra e escolha dos cortes. Somente opções gratuitas: faster-whisper e Ollama locais, regras, ou planos gratuitos do Groq/Gemini |
 
 ### Por que essas escolhas (MVP)
 
 - **Fila no próprio Postgres** (em vez de Redis/BullMQ/SQS): zero infraestrutura extra, transacional, visível no painel do Supabase, e `SKIP LOCKED` permite vários workers em paralelo. Trocar por SQS/BullMQ no futuro só exige reimplementar `worker/queue.ts`.
 - **Worker separado do Next.js**: FFmpeg é CPU-intensivo e um vídeo longo leva minutos — não cabe em funções serverless (limites de tempo/memória). O worker é um container comum (Railway, Render, Fly.io, VPS, ECS…) e escala horizontalmente.
 - **Upload direto ao Storage (TUS)**: o arquivo não passa pelo servidor Next.js (que tem limite de corpo de requisição), suporta vários GB, retoma após quedas e mostra progresso real.
-- **Claude para análise**: entende contexto longo (1M tokens), segue instruções detalhadas de edição e devolve JSON estruturado validado por schema.
-- **Whisper (OpenAI/Groq) para transcrição**: devolve timestamps por palavra — base de tudo (cortes precisos, remoção de pausas, legendas sincronizadas). A Anthropic não oferece API de transcrição de áudio.
+- **100% gratuito**: só há ferramentas open source locais (faster-whisper, Ollama, FFmpeg, OpenCV, Supabase local) e, opcionalmente, planos gratuitos sem cartão (Groq, Gemini). Integrações pagas foram removidas do código.
+- **faster-whisper para transcrição**: devolve o tempo de cada palavra — base de tudo (cortes precisos, remoção de pausas, legendas sincronizadas) — sem enviar o áudio para fora.
+- **Ollama para análise**: modelos abertos rodando localmente, chamados pela mesma interface compatível usada pelos planos gratuitos em nuvem. Sem IA instalada, a análise por regras funciona sem dependências.
 
 ## Pipeline de processamento (economia de IA)
 
@@ -72,7 +73,7 @@ Regras de custo implementadas:
 - O vídeo **nunca** é enviado a um LLM; só o texto da transcrição.
 - Transcrição e análise acontecem **uma vez por vídeo**. Em retry, `process_video` reaproveita a transcrição e os cortes já salvos (`transcripts`/`clips`).
 - Editar, re-renderizar, trocar estilo de legenda, formato ou intervalo **não chama IA** (só FFmpeg).
-- Prompt de sistema estável com `cache_control` (prompt caching) e resposta estruturada (sem retries por JSON inválido).
+- Resposta da IA em JSON validado; itens malformados são descartados em vez de repetir a chamada.
 - Todo consumo é registrado em `usage_events` (segundos transcritos, tokens de entrada/saída, segundos renderizados) — base para créditos/planos.
 - Limite de vídeos simultâneos por usuário (`MAX_CONCURRENT_VIDEOS`) e de duração (`MAX_VIDEO_SECONDS`).
 
@@ -128,7 +129,7 @@ Status do corte (`clip_status`): `suggested | queued | rendering | ready (penden
 
 - **RLS em todas as tabelas**: cada usuário só lê/edita o que é seu. `videos`, `transcripts`, `exports`, `jobs` não aceitam escrita do client; triggers impedem alterar campos de sistema (`score`, `output_path`, plano, créditos…).
 - **Storage privado**: caminhos `{user_id}/{project_id}/…`; políticas restringem upload/leitura à própria pasta; acesso via URLs assinadas de curta duração.
-- **Chaves**: `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` existem só no servidor/worker (nunca `NEXT_PUBLIC_*`). `server-only` impede import acidental no client.
+- **Chaves**: `SUPABASE_SERVICE_ROLE_KEY` e as chaves opcionais de planos gratuitos (`GROQ_API_KEY`, `GEMINI_API_KEY`) existem só no servidor/worker (nunca `NEXT_PUBLIC_*`). `server-only` impede import acidental no client.
 - **APIs**: sessão validada no Supabase Auth (`getUser`), checagem de mesma origem em mutações (CSRF), validação de entrada com zod, erros internos não vazam detalhes, proteção contra open-redirect.
 - **Uploads**: whitelist de extensões/MIME, limite de tamanho (API + bucket), validação do conteúdo real com `ffprobe` no worker, limite de duração.
 - **Processos**: FFmpeg/Python executados sem shell (`spawn` com array de argumentos).
@@ -144,7 +145,7 @@ Status do corte (`clip_status`): `suggested | queued | rendering | ready (penden
 | Publicação automática (Instagram, TikTok, YouTube) | novo `job_type` (`publish_clip`) + tabela `social_accounts`; os cortes já têm título, legenda e hashtags |
 | Analytics dos vídeos | tabela `clip_metrics` alimentada por jobs periódicos usando as APIs das plataformas |
 | Títulos/hashtags/thumbnails com IA | já gerados na análise; regenerar = novo job barato só com o texto do corte |
-| Trocar provedor de IA | implementar `TranscriptionProvider` / `ClipAnalyzer` e registrar em `worker/ai/*/index.ts` |
+| Trocar provedor de IA | implementar `TranscriptionProvider` / `ClipAnalyzer` e registrar em `worker/ai/*/index.ts` (integrações pagas podem ser recuperadas do histórico do git, se um dia forem desejadas) |
 | Escalar processamento | mais réplicas do worker (`claim_job` com `SKIP LOCKED`), `WORKER_CONCURRENCY`, GPU/NVENC no futuro |
 
 ## Estrutura de pastas
@@ -169,8 +170,8 @@ worker/
   queue.ts             claim/complete/fail/retry
   jobs/                process-video, render-clip, export-zip
   media/               ffmpeg, áudio, proxy, render, enquadramento (OpenCV)
-  ai/transcription/    OpenAI/Groq (Whisper) + mock de testes
-  ai/analysis/         Anthropic Claude + heurístico gratuito
+  ai/transcription/    faster-whisper local, Groq (plano gratuito) + mock de testes
+  ai/analysis/         regras, Ollama/servidor local, Gemini/Groq (planos gratuitos)
   Dockerfile
 supabase/migrations/   schema, RLS, fila, storage
 supabase/tests/        teste de fumaça de RLS

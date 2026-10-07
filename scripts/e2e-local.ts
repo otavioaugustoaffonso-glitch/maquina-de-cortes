@@ -5,8 +5,7 @@
  *   -> render 1080x1920 H.264/AAC -> thumbnail -> zip.
  *
  *   npm run test:e2e
- *
- * Com ANTHROPIC_API_KEY definida e E2E_USE_CLAUDE=1, a análise usa o Claude de verdade.
+
  */
 import { ZipArchive } from "archiver";
 import fs from "node:fs";
@@ -123,8 +122,7 @@ async function main() {
 
   // 5. Análise
   console.log("\n5. Analisando transcrição...");
-  const useClaude = process.env.E2E_USE_CLAUDE === "1" && process.env.ANTHROPIC_API_KEY;
-  const analyzer = useClaude ? new (await import("../worker/ai/analysis/anthropic")).AnthropicAnalyzer() : new HeuristicAnalyzer();
+  const analyzer = new HeuristicAnalyzer();
   const prompt = formatTranscriptForPrompt(merged.segments);
   const result = await analyzer.analyze({ transcript: prompt, durationSeconds: info.duration, language: "pt", clipCount: targetClipCount(info.duration), projectName: "E2E" });
   assert(result.clips.length > 0, `${analyzer.name}: ${result.clips.length} candidatos`);

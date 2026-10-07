@@ -19,17 +19,17 @@ O usuário envia um vídeo → o sistema extrai o áudio, transcreve com timesta
 
 ## Stack
 
-Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · Supabase (Postgres, Auth, Storage, RLS) · FFmpeg · OpenCV · faster-whisper/Groq/OpenAI (transcrição) · heurística/Gemini/Groq/Ollama/Claude (análise).
+Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · Supabase (Postgres, Auth, Storage, RLS) · FFmpeg · OpenCV · faster-whisper (transcrição local) · Ollama ou regras (análise local) · tudo open source e gratuito.
 
-## Custo zero por padrão
+## 100% gratuito
 
-A configuração padrão não usa nenhum serviço pago: Supabase local, transcrição local (faster-whisper) e análise heurística. Também há suporte a APIs com plano gratuito (Groq, Gemini) e a modelos locais (Ollama). OpenAI e Anthropic ficam **bloqueados** até `ALLOW_PAID_PROVIDERS=true`. Veja [docs/CUSTOS.md](docs/CUSTOS.md).
+Tudo roda no seu computador com software open source: Supabase local, transcrição com faster-whisper, análise com Ollama (ou regras) e FFmpeg/OpenCV para os vídeos. Não precisa de conta, chave de API nem cartão. As integrações pagas foram removidas do código. Como opção, dá para usar os planos gratuitos do Groq e do Gemini, com chaves criadas sem cartão. Veja [docs/CUSTOS.md](docs/CUSTOS.md).
 
 ## Documentação
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — arquitetura, pipeline, score, modelo de dados, segurança, extensibilidade.
-- [docs/CUSTOS.md](docs/CUSTOS.md) — planos gratuitos, limites, custo por vídeo de 30 min e 1 h, alternativas open source.
-- [docs/SETUP.md](docs/SETUP.md) — passo a passo de cada serviço externo (onde criar conta, onde obter a chave, variáveis, custos e alternativas gratuitas), hospedagem e execução local.
+- [docs/CUSTOS.md](docs/CUSTOS.md) — ferramentas gratuitas, limites e estimativas para vídeos de 30 min e 1 h.
+- [docs/SETUP.md](docs/SETUP.md) — o que instalar e como rodar tudo localmente sem custo.
 
 ## Início rápido
 
@@ -64,8 +64,8 @@ O SQL de RLS pode ser validado com `supabase/tests/rls_smoke_test.sql`.
 | 6 | Dashboard | ✅ |
 | 7 | Upload de vídeos | ✅ TUS resumable, cancelar, progresso |
 | 8 | Processamento assíncrono | ✅ fila Postgres + worker com retry/heartbeat |
-| 9 | Transcrição | ✅ OpenAI/Groq Whisper com timestamps por palavra |
-| 10 | IA para identificação dos cortes | ✅ Claude com saída estruturada + score |
+| 9 | Transcrição | ✅ faster-whisper local (ou Groq gratuito) com tempo por palavra |
+| 10 | IA para identificação dos cortes | ✅ Ollama local ou regras (ou Gemini/Groq gratuitos) + score |
 | 11 | FFmpeg | ✅ |
 | 12 | Vídeos verticais | ✅ 9:16 com tracking de rosto |
 | 13 | Legendas | ✅ ASS animado + 5 estilos |

@@ -1,213 +1,94 @@
-# Configuração — serviços externos, chaves e custos
+# Configuração — 100% gratuita
 
-> Preços consultados em outubro/2026 e sujeitos a mudança — confira sempre a página oficial de cada serviço.
->
-> **Custo zero por padrão.** A configuração padrão não usa nenhum serviço pago. OpenAI e Anthropic ficam bloqueados
-> no código até `ALLOW_PAID_PROVIDERS=true`. Comparativo completo de planos gratuitos, limites e custo por vídeo: **[docs/CUSTOS.md](CUSTOS.md)**.
+Tudo roda no seu computador com software open source. Não é preciso criar conta, gerar chave de API nem cadastrar cartão. Detalhes de limites e custos: [CUSTOS.md](CUSTOS.md).
 
-Resumo do que você precisa:
+## O que instalar
 
-| Serviço | Para quê | Opção gratuita (recomendada para o MVP) | Opção paga (bloqueada por padrão) |
-|---|---|---|---|
-| Supabase | Banco, Auth, Storage, fila | **Supabase local** (`npx supabase start`, Docker) | Supabase Pro |
-| Transcrição | Fala → texto com tempo por palavra | **faster-whisper local** (padrão) ou **Groq Free** | OpenAI `whisper-1` |
-| Análise dos cortes | Escolher e pontuar trechos | **Heurística** (padrão), **Gemini Free**, **Groq Free** ou **Ollama** local | Anthropic Claude |
-| Hospedagem web | Next.js | Local / Vercel Hobby (não comercial) / mesmo servidor do worker | Vercel Pro |
-| Hospedagem do worker | FFmpeg/OpenCV/Whisper | Seu computador / Oracle Cloud Always Free | VPS paga |
-
-## 0. Caminho de custo zero (recomendado)
-
-```bash
-# Requisitos: Node 22, Docker, ffmpeg, python3
-npm install
-pip install -r worker/requirements.txt     # OpenCV + faster-whisper
-npm run fonts
-
-npx supabase start                         # Supabase local (usa supabase/config.toml)
-npx supabase db reset                      # aplica supabase/migrations
-# copie a "API URL", "anon key" e "service_role key" impressas para .env.local e .env
-cp .env.example .env.local && cp .env.example .env
-
-npm run dev                                # http://localhost:3000
-npm run worker                             # outro terminal
-```
-
-Com isso: transcrição local (faster-whisper), análise heurística, armazenamento local — **US$ 0**.
-Para cortes melhores sem custo, crie chaves gratuitas (sem cadastrar cartão) e use:
-
-```bash
-TRANSCRIPTION_PROVIDER=groq   GROQ_API_KEY=gsk_...     # https://console.groq.com/keys
-ANALYSIS_PROVIDER=gemini      GEMINI_API_KEY=...       # https://aistudio.google.com/apikey
-```
-
-As seções abaixo detalham cada serviço, incluindo as opções pagas para quando você decidir usá-las.
-
----
-
-## 1. Supabase (banco, autenticação, armazenamento)
-
-**Onde criar:** https://supabase.com/dashboard → *New project* (escolha a região mais próxima dos usuários, ex.: São Paulo `sa-east-1`).
-
-**Onde obter as chaves:** *Project Settings → API* (ou *API Keys*):
-
-| Variável | Valor | Onde usar |
+| Ferramenta | Para quê | Onde baixar |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL (`https://xxxx.supabase.co`) | web + worker |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | chave **anon** / **publishable** (pública, protegida por RLS) | web |
-| `SUPABASE_SERVICE_ROLE_KEY` | chave **service_role** / **secret** — **NUNCA exponha no navegador** | servidor Next.js + worker |
+| Node.js 22 | Site e worker | https://nodejs.org |
+| Docker Desktop (ou Docker Engine) | Supabase local | https://www.docker.com/products/docker-desktop |
+| ffmpeg | Cortar e montar os vídeos | https://ffmpeg.org/download.html (Windows: `winget install ffmpeg`; macOS: `brew install ffmpeg`; Linux: `apt install ffmpeg`) |
+| Python 3.10+ | Detecção de rosto e transcrição local | https://www.python.org/downloads |
+| Ollama (opcional, recomendado) | IA local para escolher os cortes | https://ollama.com/download |
 
-**Criar o banco:**
+O Docker Desktop é gratuito para uso pessoal, educacional e empresas pequenas; confira os termos se sua empresa for grande. Alternativas totalmente livres: Docker Engine (Linux) ou Podman.
 
-- Opção A (mais simples): *SQL Editor* → cole e execute, nesta ordem,
-  `supabase/migrations/20261007000001_init.sql` e `supabase/migrations/20261007000002_storage.sql`.
-- Opção B (CLI): `npx supabase login && npx supabase link --project-ref <ref> && npx supabase db push`.
-- Opcional: rode `supabase/tests/rls_smoke_test.sql` num banco de teste para validar as políticas (ele faz `rollback` ao final).
-
-**Autenticação:** *Authentication → URL Configuration*
-
-- *Site URL*: `http://localhost:3000` (dev) e depois a URL de produção.
-- *Redirect URLs*: `http://localhost:3000/auth/callback`, `https://SEU-DOMINIO/auth/callback` e `https://SEU-DOMINIO/auth/confirm`.
-- *Authentication → Providers → Email*: deixe "Confirm email" ligado em produção.
-- Em produção configure um SMTP próprio (*Authentication → SMTP Settings*, ex.: Resend, Postmark, SES): o SMTP padrão do Supabase tem limite baixo de e-mails por hora e serve só para testes.
-- (Opcional) Para que o link de recuperação funcione em outro dispositivo, edite o template *Reset Password* para:
-  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/auth/reset-password`
-
-**Storage:** os buckets `videos`, `clips` e `exports` (privados) são criados pela migration.
-⚠️ **Limite de tamanho por arquivo:** no plano Free o limite global de upload é baixo (50 MB por arquivo), o que impede vídeos longos. No plano Pro ajuste em *Storage → Settings → Upload file size limit* (o bucket `videos` da migration aceita até 10 GB; mantenha `MAX_UPLOAD_BYTES` coerente).
-
-**Custo aproximado:**
-
-- Free: US$ 0 — 500 MB de banco, 1 GB de storage, 2 projetos (pausa por inatividade). Bom para desenvolvimento com vídeos pequenos.
-- Pro: **US$ 25/mês** por organização — inclui 100 GB de storage (excedente ≈ US$ 0,021/GB/mês), 8 GB de banco e egress incluso com cobrança por excedente.
-- Estimativa de armazenamento: 1 h de vídeo 1080p ≈ 1–3 GB (original) + ~150 MB (proxy) + ~10–25 MB por corte. Use `EXPORT_TTL_DAYS` e exclua projetos antigos para controlar custos.
-
-**Alternativa gratuita:** Supabase self-hosted (Docker) ou o plano Free para testes. Storage compatível com S3 (Cloudflare R2, AWS S3) é possível trocando `worker/storage.ts` e o upload TUS do navegador por URLs pré-assinadas multipart.
-
----
-
-## 2. Transcrição — faster-whisper local (padrão, grátis), Groq (plano gratuito) ou OpenAI (pago)
-
-O sistema precisa de **timestamps por palavra**. Por isso usa o modelo `whisper-1` (OpenAI) ou `whisper-large-v3(-turbo)` (Groq), ambos com `response_format=verbose_json` + `timestamp_granularities[]=word`. Os modelos `gpt-4o-transcribe` / `gpt-4o-mini-transcribe` são mais baratos/precisos, mas **não retornam timestamps por palavra** — por isso não são usados.
-
-O áudio é extraído em MP3 mono 16 kHz 32 kbps (~14 MB/h) e, se passar do limite de 25 MB por requisição, é dividido em pedaços de ~10 min cortados no meio de silêncios.
-
-### Opção A — OpenAI (PAGA — exige `ALLOW_PAID_PROVIDERS=true`)
-
-- **Conta:** https://platform.openai.com/signup → adicione créditos em *Settings → Billing*.
-- **API key:** https://platform.openai.com/api-keys → *Create new secret key*.
-- **Variáveis:**
-  ```
-  TRANSCRIPTION_PROVIDER=openai
-  OPENAI_API_KEY=sk-...
-  ALLOW_PAID_PROVIDERS=true
-  ```
-- **Custo:** `whisper-1` ≈ **US$ 0,006/min** → **~US$ 0,36 por hora de vídeo**.
-
-### Opção B — Groq (mais barato e mais rápido)
-
-- **Conta:** https://console.groq.com → **API key:** https://console.groq.com/keys
-- **Variáveis:**
-  ```
-  TRANSCRIPTION_PROVIDER=groq
-  GROQ_API_KEY=gsk_...
-  GROQ_TRANSCRIPTION_MODEL=whisper-large-v3-turbo   # ou whisper-large-v3 (mais preciso)
-  ```
-- **Custo:** `whisper-large-v3-turbo` ≈ **US$ 0,04 por hora de áudio**; `whisper-large-v3` ≈ US$ 0,111/h.
-- **Alternativa gratuita:** o Groq tem camada gratuita com limites de requisições/minuto e de áudio por hora/dia — suficiente para testes.
-
-### Opção gratuita padrão — faster-whisper local (já implementado)
-
-```
-TRANSCRIPTION_PROVIDER=local
-LOCAL_WHISPER_MODEL=small      # tiny | base | small | medium | large-v3-turbo
-LOCAL_WHISPER_DEVICE=cpu       # cuda se tiver GPU NVIDIA
-```
-
-Open source (MIT), sem conta e sem chave. O modelo é baixado do Hugging Face na primeira execução. Em CPU de 4 núcleos, o modelo `small` leva aproximadamente 1/3 a 4/5 da duração do áudio.
-
----
-
-## 3. Análise dos cortes — opções gratuitas e Anthropic Claude (pago)
-
-Opções gratuitas já implementadas: `ANALYSIS_PROVIDER=heuristic` (padrão), `gemini`, `groq`, `ollama`, `openai-compatible` — detalhes e limites em [CUSTOS.md](CUSTOS.md). Abaixo, a opção paga.
-
-### Anthropic Claude (PAGA — exige `ALLOW_PAID_PROVIDERS=true`)
-
-- **Conta:** https://console.anthropic.com → *Billing* para adicionar créditos.
-- **API key:** https://console.anthropic.com/settings/keys → *Create Key*.
-- **Variáveis:**
-  ```
-  ANALYSIS_PROVIDER=anthropic
-  ANTHROPIC_API_KEY=sk-ant-...
-  ALLOW_PAID_PROVIDERS=true
-  ANTHROPIC_MODEL=claude-opus-5-5     # padrão
-  ANTHROPIC_EFFORT=high               # low | medium | high | xhigh | max
-  ```
-- **Como é usado:** uma chamada por vídeo (vídeos acima de ~4 h são divididos em janelas), enviando apenas o texto `[início-fim] frase`. Resposta em JSON estruturado validado por schema, com *adaptive thinking* e *prompt caching* do prompt de sistema. O parâmetro `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) faz a própria API tentar um modelo alternativo caso a requisição seja recusada pelos classificadores de segurança.
-- **Preços por milhão de tokens (entrada / saída):**
-  | Modelo | Entrada | Saída |
-  |---|---|---|
-  | `claude-opus-5-5` (padrão, melhor qualidade) | US$ 4 | US$ 20 |
-  | `claude-sonnet-5-5` | US$ 2 | US$ 10 |
-  | `claude-haiku-4-5` | US$ 1 | US$ 5 |
-- **Estimativa por hora de vídeo** (~10 mil palavras ≈ 20–30 mil tokens de entrada; 7–20 mil de saída incluindo raciocínio): **~US$ 0,25–0,55 com Opus 5.5**, cerca de metade com Sonnet 5.5. O consumo real fica registrado em `usage_events` (`llm_input_tokens`, `llm_output_tokens`).
-- **Trocar de provedor:** implemente `ClipAnalyzer` em `worker/ai/analysis/` e registre em `index.ts`.
-
----
-
-## 4. Custo total estimado por vídeo
-
-| Item | 1 h de vídeo |
-|---|---|
-| Transcrição (OpenAI whisper-1 / Groq turbo) | US$ 0,36 / US$ 0,04 |
-| Análise (Claude Opus 5.5) | ~US$ 0,25–0,55 |
-| Renderização (FFmpeg no seu worker) | só CPU do servidor |
-| **Total de APIs** | **~US$ 0,30–0,90** |
-
-Editar, re-renderizar, mudar legenda/formato e exportar **não geram custo de IA**.
-
----
-
-## 5. Hospedagem
-
-### Web (Next.js)
-
-- **Vercel** (recomendado): importe o repositório em https://vercel.com/new, configure as variáveis de ambiente (as `NEXT_PUBLIC_*`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SITE_URL`, `MAX_UPLOAD_BYTES`, `MAX_CONCURRENT_VIDEOS`). Hobby é gratuito (uso não comercial); Pro ≈ US$ 20/usuário/mês. O upload de vídeo vai direto ao Supabase, então não há problema com limite de corpo das funções.
-- Alternativas: Netlify, Railway, Render ou qualquer servidor Node (`npm run build && npm start`).
-
-### Worker (FFmpeg)
-
-Precisa de um container de longa duração (não serverless):
+## Passo a passo
 
 ```bash
-docker build -f worker/Dockerfile -t maquina-de-cortes-worker .
-docker run --env-file .env maquina-de-cortes-worker
-```
-
-- Opções: Railway, Render (Background Worker), Fly.io, Google Cloud Run Jobs, AWS ECS/Fargate ou uma VPS (Hetzner, DigitalOcean…).
-- Recomendação inicial: **4 vCPU / 8 GB RAM** e disco temporário de ~20 GB por vídeo longo simultâneo. Custo típico em VPS: ~US$ 10–40/mês.
-- Escala: aumente `WORKER_CONCURRENCY` ou rode mais réplicas — a fila (`claim_job` com `SKIP LOCKED`) distribui os jobs sem duplicar.
-- Ajuste qualidade/velocidade com `X264_PRESET` (`veryfast` é ~3× mais rápido que `medium`) e `X264_CRF`.
-
----
-
-## 6. Rodando localmente
-
-```bash
+# 1. Dependências do projeto
 npm install
-cp .env.example .env.local        # preencha (web)
-cp .env.example .env              # preencha (worker) — pode ser o mesmo conteúdo
-npm run fonts                     # baixa as fontes das legendas para worker/fonts
-pip install -r worker/requirements.txt   # OpenCV 4.x (detecção de rosto)
+pip install -r worker/requirements.txt   # OpenCV + faster-whisper
+npm run fonts                            # fontes das legendas (Google Fonts, licença OFL)
 
-npm run dev                       # http://localhost:3000
-npm run worker                    # em outro terminal (requer ffmpeg e python3 no PATH)
+# 2. Supabase local (banco, login e arquivos)
+npx supabase start                       # usa supabase/config.toml
+npx supabase db reset                    # cria as tabelas, as regras de acesso e os buckets
+
+# 3. Variáveis de ambiente
+cp .env.example .env.local
+cp .env.example .env
+# cole nos dois arquivos a "API URL", a "anon key" e a "service_role key" impressas pelo `supabase start`
+
+# 4. Rodar
+npm run dev        # site em http://localhost:3000
+npm run worker     # processamento, em outro terminal
 ```
 
-Testes:
+Na primeira transcrição, o faster-whisper baixa o modelo escolhido (gratuito; o `small` tem cerca de 500 MB).
+
+Os e-mails de confirmação e de recuperação de senha não saem da sua máquina: o Supabase local mostra todos num painel de e-mails (o endereço aparece na saída do `supabase start`).
+
+## Melhorar a escolha dos cortes com IA local (Ollama)
+
+A análise padrão usa regras simples. Para cortes melhores, ainda grátis e sem enviar nada para fora:
 
 ```bash
-npm test             # unitários (legendas, timing, score, render, enquadramento, áudio)
-npm run test:e2e     # pipeline de mídia completo, local, sem custo de API
+ollama pull qwen2.5:7b        # ~5 GB; precisa de ~8 GB de RAM livre
+```
+
+No `.env`:
+
+```
+ANALYSIS_PROVIDER=ollama
+LLM_MODEL=qwen2.5:7b
+```
+
+Com 16 GB de RAM ou mais, `qwen2.5:14b` tende a escolher cortes melhores. Também funciona com LM Studio ou llama.cpp (`ANALYSIS_PROVIDER=openai-compatible` e `LLM_BASE_URL` apontando para o servidor local).
+
+## Ajustes para computadores mais modestos
+
+| Situação | Ajuste no `.env` |
+|---|---|
+| Transcrição lenta | `LOCAL_WHISPER_MODEL=base` (mais rápido, um pouco menos preciso) |
+| Tem GPU NVIDIA | `LOCAL_WHISPER_DEVICE=cuda` e `LOCAL_WHISPER_MODEL=large-v3-turbo` |
+| Pouca RAM para o Ollama | Fique com `ANALYSIS_PROVIDER=heuristic` ou use um modelo de 3B (`qwen2.5:3b`) |
+| Renderização lenta | `X264_PRESET=ultrafast` e `MAX_AUTO_RENDER=5` |
+| Pouco espaço em disco | `PROXY_ENABLED=false` e exclua projetos antigos pelo app |
+
+## Opcional: planos gratuitos em nuvem
+
+Se o computador for lento, dá para usar APIs que têm plano gratuito. **Crie as chaves sem cadastrar cartão e sem ativar faturamento**; assim, ao atingir o limite, as requisições são só recusadas.
+
+| Uso | Onde criar a chave | Variáveis |
+|---|---|---|
+| Transcrição (Groq) | https://console.groq.com/keys | `TRANSCRIPTION_PROVIDER=groq`, `GROQ_API_KEY=...` |
+| Análise (Groq) | mesma chave | `ANALYSIS_PROVIDER=groq` |
+| Análise (Gemini) | https://aistudio.google.com/apikey | `ANALYSIS_PROVIDER=gemini`, `GEMINI_API_KEY=...` |
+
+Nesses casos o áudio (Groq) ou o texto da transcrição (Groq/Gemini) sai do seu computador. O vídeo nunca é enviado.
+
+## Colocar online sem pagar (opcional)
+
+- **Oracle Cloud Always Free:** uma VM ARM com 4 núcleos e 24 GB de RAM roda tudo (Supabase via Docker, site, worker, faster-whisper e Ollama). O cadastro pede cartão só para verificação; não converta a conta para "Pay As You Go".
+- **Vercel Hobby:** hospeda só o site, para uso não comercial.
+- O Supabase hospedado no plano Free **não serve para vídeos**: limita cada arquivo a 50 MB.
+
+## Testes
+
+```bash
+npm test             # testes automáticos
+npm run test:e2e     # pipeline de vídeo completo, local
 npm run typecheck && npm run lint
 ```

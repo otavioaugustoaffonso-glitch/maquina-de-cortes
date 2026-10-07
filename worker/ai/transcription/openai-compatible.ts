@@ -13,7 +13,7 @@ type VerboseJson = {
 
 /**
  * Cliente para a API de transcrição no formato OpenAI (`/audio/transcriptions`),
- * usada pela OpenAI (whisper-1) e pela Groq (whisper-large-v3 / -turbo).
+ * usada pela Groq (plano gratuito: whisper-large-v3 / -turbo).
  * Pedimos `verbose_json` com timestamps por PALAVRA — essenciais para cortes
  * precisos, remoção de pausas e legendas sincronizadas.
  */

@@ -35,7 +35,7 @@ export const env = {
   enforceCredits: process.env.ENFORCE_CREDITS === "true",
   exportTtlDays: num("EXPORT_TTL_DAYS", 7),
 
-  // Padrões GRATUITOS: nada pago roda sem configuração explícita (ver ALLOW_PAID_PROVIDERS)
-  transcriptionProvider: (process.env.TRANSCRIPTION_PROVIDER || "local") as "local" | "groq" | "openai" | "mock",
-  analysisProvider: (process.env.ANALYSIS_PROVIDER || "heuristic") as "heuristic" | "gemini" | "groq" | "ollama" | "openai-compatible" | "anthropic",
+  // Somente provedores gratuitos existem no projeto (open source local ou plano gratuito)
+  transcriptionProvider: (process.env.TRANSCRIPTION_PROVIDER || "local") as "local" | "groq" | "mock",
+  analysisProvider: (process.env.ANALYSIS_PROVIDER || "heuristic") as "heuristic" | "ollama" | "openai-compatible" | "gemini" | "groq",
 };

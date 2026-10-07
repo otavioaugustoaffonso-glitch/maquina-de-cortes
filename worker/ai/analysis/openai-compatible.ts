@@ -36,7 +36,7 @@ export const PRESETS: Record<string, Preset> = {
   },
   ollama: {
     baseUrl: "http://localhost:11434/v1",
-    model: "qwen2.5:14b",
+    model: "qwen2.5:7b",
     maxChars: 24_000,
   },
   "openai-compatible": {

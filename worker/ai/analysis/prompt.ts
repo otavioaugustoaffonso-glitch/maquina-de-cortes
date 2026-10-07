@@ -1,7 +1,7 @@
 import type { AnalysisInput } from "./types";
 
 /**
- * Prompt de sistema estável (sem dados variáveis) — elegível para cache de prompt.
+ * Prompt de sistema estável (sem dados variáveis).
  */
 export const SYSTEM_PROMPT = `Você é um editor sênior de vídeos curtos (TikTok, Instagram Reels, YouTube Shorts) especialista em retenção. Sua tarefa é ler a transcrição com timestamps de um vídeo longo e escolher os trechos com maior potencial para virar cortes curtos virais.
 

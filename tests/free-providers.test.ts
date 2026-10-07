@@ -11,7 +11,7 @@ const clip = {
   keywords: ["a"], hashtags: ["#a"], social_caption: "c", scores: { hook: 8, clarity: 7, value: 8, emotion: 6, curiosity: 7, standalone: 8 },
 };
 
-describe("trava de provedores pagos", () => {
+describe("somente provedores gratuitos", () => {
   it.skipIf(Boolean(process.env.TRANSCRIPTION_PROVIDER || process.env.ANALYSIS_PROVIDER))("padrões são gratuitos", () => {
     expect(env.transcriptionProvider).toBe("local");
     expect(env.analysisProvider).toBe("heuristic");
@@ -19,14 +19,13 @@ describe("trava de provedores pagos", () => {
     expect(getTranscriptionProvider().name).toBe("local");
   });
 
-  it("bloqueia Anthropic e OpenAI sem ALLOW_PAID_PROVIDERS", () => {
+  it("provedores pagos não existem no projeto", () => {
     const prev = { a: env.analysisProvider, t: env.transcriptionProvider };
     try {
-      delete process.env.ALLOW_PAID_PROVIDERS;
-      env.analysisProvider = "anthropic";
-      expect(() => getClipAnalyzer()).toThrow(/pago e está bloqueado/);
-      env.transcriptionProvider = "openai";
-      expect(() => getTranscriptionProvider()).toThrow(/pago e está bloqueado/);
+      (env as { analysisProvider: string }).analysisProvider = "anthropic";
+      expect(() => getClipAnalyzer()).toThrow(/inválido/);
+      (env as { transcriptionProvider: string }).transcriptionProvider = "openai";
+      expect(() => getTranscriptionProvider()).toThrow(/inválido/);
     } finally {
       env.analysisProvider = prev.a;
       env.transcriptionProvider = prev.t;
