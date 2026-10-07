@@ -24,5 +24,7 @@ export type AnalysisResult = {
 export interface ClipAnalyzer {
   readonly name: string;
   readonly model: string;
+  /** Tamanho máximo da transcrição por chamada (limites de contexto/plano gratuito). */
+  readonly maxTranscriptChars?: number;
   analyze(input: AnalysisInput): Promise<AnalysisResult>;
 }

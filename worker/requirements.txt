@@ -1,3 +1,5 @@
-# Dependências Python do worker (detecção de rosto para enquadramento automático)
-# OpenCV 4.x: inclui os classificadores Haar (removidos no OpenCV 5).
+# Dependências Python do worker (todas open source e gratuitas)
+# OpenCV 4.x: detecção de rosto (classificadores Haar foram removidos no OpenCV 5)
 opencv-python-headless>=4.9,<5
+# Transcrição local gratuita com timestamps por palavra (TRANSCRIPTION_PROVIDER=local)
+faster-whisper>=1.1,<2

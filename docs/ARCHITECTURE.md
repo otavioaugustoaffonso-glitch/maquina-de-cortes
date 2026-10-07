@@ -37,7 +37,7 @@
 | Autenticação | Supabase Auth via `@supabase/ssr` | Supabase | Cadastro, login, logout, recuperação de senha, sessão em cookies |
 | Filas/background | Tabela `jobs` + `claim_job()` com `FOR UPDATE SKIP LOCKED` | Postgres | Jobs assíncronos, retry exponencial, recuperação de workers mortos |
 | Processamento de vídeo | FFmpeg (libx264, AAC, libass) + OpenCV (Python) | Worker (Docker) | Áudio, proxy, cortes, remoção de pausas, 9:16, legendas, thumbnails |
-| IA | Interfaces `TranscriptionProvider` e `ClipAnalyzer` | Worker | Transcrição com timestamps por palavra; escolha e pontuação dos cortes |
+| IA | Interfaces `TranscriptionProvider` e `ClipAnalyzer` | Worker | Transcrição com timestamps por palavra; escolha e pontuação dos cortes. Padrão gratuito (faster-whisper local + heurística); Groq/Gemini/Ollama gratuitos; OpenAI/Anthropic pagos atrás da trava `ALLOW_PAID_PROVIDERS` |
 
 ### Por que essas escolhas (MVP)
 

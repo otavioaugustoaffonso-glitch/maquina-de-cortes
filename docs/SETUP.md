@@ -1,16 +1,46 @@
 # Configuração — serviços externos, chaves e custos
 
-> Preços consultados em outubro/2026 e sujeitos a mudança — confira sempre a página oficial de cada serviço antes de colocar em produção.
+> Preços consultados em outubro/2026 e sujeitos a mudança — confira sempre a página oficial de cada serviço.
+>
+> **Custo zero por padrão.** A configuração padrão não usa nenhum serviço pago. OpenAI e Anthropic ficam bloqueados
+> no código até `ALLOW_PAID_PROVIDERS=true`. Comparativo completo de planos gratuitos, limites e custo por vídeo: **[docs/CUSTOS.md](CUSTOS.md)**.
 
 Resumo do que você precisa:
 
-| Serviço | Para quê | Obrigatório? | Variáveis |
+| Serviço | Para quê | Opção gratuita (recomendada para o MVP) | Opção paga (bloqueada por padrão) |
 |---|---|---|---|
-| Supabase | Banco, Auth, Storage, fila | Sim | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
-| OpenAI **ou** Groq | Transcrição (Whisper, timestamps por palavra) | Sim (um dos dois) | `TRANSCRIPTION_PROVIDER`, `OPENAI_API_KEY` / `GROQ_API_KEY` |
-| Anthropic | Análise da transcrição e escolha dos cortes | Recomendado (existe alternativa gratuita de baixa qualidade) | `ANALYSIS_PROVIDER`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` |
-| Hospedagem web | Next.js | Sim | — |
-| Hospedagem do worker | FFmpeg/OpenCV em background | Sim | — |
+| Supabase | Banco, Auth, Storage, fila | **Supabase local** (`npx supabase start`, Docker) | Supabase Pro |
+| Transcrição | Fala → texto com tempo por palavra | **faster-whisper local** (padrão) ou **Groq Free** | OpenAI `whisper-1` |
+| Análise dos cortes | Escolher e pontuar trechos | **Heurística** (padrão), **Gemini Free**, **Groq Free** ou **Ollama** local | Anthropic Claude |
+| Hospedagem web | Next.js | Local / Vercel Hobby (não comercial) / mesmo servidor do worker | Vercel Pro |
+| Hospedagem do worker | FFmpeg/OpenCV/Whisper | Seu computador / Oracle Cloud Always Free | VPS paga |
+
+## 0. Caminho de custo zero (recomendado)
+
+```bash
+# Requisitos: Node 22, Docker, ffmpeg, python3
+npm install
+pip install -r worker/requirements.txt     # OpenCV + faster-whisper
+npm run fonts
+
+npx supabase start                         # Supabase local (usa supabase/config.toml)
+npx supabase db reset                      # aplica supabase/migrations
+# copie a "API URL", "anon key" e "service_role key" impressas para .env.local e .env
+cp .env.example .env.local && cp .env.example .env
+
+npm run dev                                # http://localhost:3000
+npm run worker                             # outro terminal
+```
+
+Com isso: transcrição local (faster-whisper), análise heurística, armazenamento local — **US$ 0**.
+Para cortes melhores sem custo, crie chaves gratuitas (sem cadastrar cartão) e use:
+
+```bash
+TRANSCRIPTION_PROVIDER=groq   GROQ_API_KEY=gsk_...     # https://console.groq.com/keys
+ANALYSIS_PROVIDER=gemini      GEMINI_API_KEY=...       # https://aistudio.google.com/apikey
+```
+
+As seções abaixo detalham cada serviço, incluindo as opções pagas para quando você decidir usá-las.
 
 ---
 
@@ -55,13 +85,13 @@ Resumo do que você precisa:
 
 ---
 
-## 2. Transcrição — OpenAI Whisper (padrão) ou Groq
+## 2. Transcrição — faster-whisper local (padrão, grátis), Groq (plano gratuito) ou OpenAI (pago)
 
 O sistema precisa de **timestamps por palavra**. Por isso usa o modelo `whisper-1` (OpenAI) ou `whisper-large-v3(-turbo)` (Groq), ambos com `response_format=verbose_json` + `timestamp_granularities[]=word`. Os modelos `gpt-4o-transcribe` / `gpt-4o-mini-transcribe` são mais baratos/precisos, mas **não retornam timestamps por palavra** — por isso não são usados.
 
 O áudio é extraído em MP3 mono 16 kHz 32 kbps (~14 MB/h) e, se passar do limite de 25 MB por requisição, é dividido em pedaços de ~10 min cortados no meio de silêncios.
 
-### Opção A — OpenAI (padrão)
+### Opção A — OpenAI (PAGA — exige `ALLOW_PAID_PROVIDERS=true`)
 
 - **Conta:** https://platform.openai.com/signup → adicione créditos em *Settings → Billing*.
 - **API key:** https://platform.openai.com/api-keys → *Create new secret key*.
@@ -69,6 +99,7 @@ O áudio é extraído em MP3 mono 16 kHz 32 kbps (~14 MB/h) e, se passar do limi
   ```
   TRANSCRIPTION_PROVIDER=openai
   OPENAI_API_KEY=sk-...
+  ALLOW_PAID_PROVIDERS=true
   ```
 - **Custo:** `whisper-1` ≈ **US$ 0,006/min** → **~US$ 0,36 por hora de vídeo**.
 
@@ -84,13 +115,23 @@ O áudio é extraído em MP3 mono 16 kHz 32 kbps (~14 MB/h) e, se passar do limi
 - **Custo:** `whisper-large-v3-turbo` ≈ **US$ 0,04 por hora de áudio**; `whisper-large-v3` ≈ US$ 0,111/h.
 - **Alternativa gratuita:** o Groq tem camada gratuita com limites de requisições/minuto e de áudio por hora/dia — suficiente para testes.
 
-### Alternativa 100% gratuita (self-hosted)
+### Opção gratuita padrão — faster-whisper local (já implementado)
 
-Rodar o Whisper localmente (ex.: `faster-whisper` ou `whisper.cpp`, ambos com timestamps por palavra) no worker. Basta implementar `TranscriptionProvider` em `worker/ai/transcription/` — o restante do pipeline não muda. Exige CPU/GPU dedicada.
+```
+TRANSCRIPTION_PROVIDER=local
+LOCAL_WHISPER_MODEL=small      # tiny | base | small | medium | large-v3-turbo
+LOCAL_WHISPER_DEVICE=cpu       # cuda se tiver GPU NVIDIA
+```
+
+Open source (MIT), sem conta e sem chave. O modelo é baixado do Hugging Face na primeira execução. Em CPU de 4 núcleos, o modelo `small` leva aproximadamente 1/3 a 4/5 da duração do áudio.
 
 ---
 
-## 3. Análise dos cortes — Anthropic Claude
+## 3. Análise dos cortes — opções gratuitas e Anthropic Claude (pago)
+
+Opções gratuitas já implementadas: `ANALYSIS_PROVIDER=heuristic` (padrão), `gemini`, `groq`, `ollama`, `openai-compatible` — detalhes e limites em [CUSTOS.md](CUSTOS.md). Abaixo, a opção paga.
+
+### Anthropic Claude (PAGA — exige `ALLOW_PAID_PROVIDERS=true`)
 
 - **Conta:** https://console.anthropic.com → *Billing* para adicionar créditos.
 - **API key:** https://console.anthropic.com/settings/keys → *Create Key*.
@@ -98,6 +139,7 @@ Rodar o Whisper localmente (ex.: `faster-whisper` ou `whisper.cpp`, ambos com ti
   ```
   ANALYSIS_PROVIDER=anthropic
   ANTHROPIC_API_KEY=sk-ant-...
+  ALLOW_PAID_PROVIDERS=true
   ANTHROPIC_MODEL=claude-opus-5-5     # padrão
   ANTHROPIC_EFFORT=high               # low | medium | high | xhigh | max
   ```
@@ -109,7 +151,6 @@ Rodar o Whisper localmente (ex.: `faster-whisper` ou `whisper.cpp`, ambos com ti
   | `claude-sonnet-5-5` | US$ 2 | US$ 10 |
   | `claude-haiku-4-5` | US$ 1 | US$ 5 |
 - **Estimativa por hora de vídeo** (~10 mil palavras ≈ 20–30 mil tokens de entrada; 7–20 mil de saída incluindo raciocínio): **~US$ 0,25–0,55 com Opus 5.5**, cerca de metade com Sonnet 5.5. O consumo real fica registrado em `usage_events` (`llm_input_tokens`, `llm_output_tokens`).
-- **Alternativa gratuita:** `ANALYSIS_PROVIDER=heuristic` — seleção por regras (palavras de impacto, perguntas, densidade). Custo zero, mas qualidade bem inferior; útil para desenvolvimento.
 - **Trocar de provedor:** implemente `ClipAnalyzer` em `worker/ai/analysis/` e registre em `index.ts`.
 
 ---

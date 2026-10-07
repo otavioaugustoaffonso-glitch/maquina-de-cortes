@@ -35,6 +35,7 @@ export const env = {
   enforceCredits: process.env.ENFORCE_CREDITS === "true",
   exportTtlDays: num("EXPORT_TTL_DAYS", 7),
 
-  transcriptionProvider: (process.env.TRANSCRIPTION_PROVIDER || "openai") as "openai" | "groq" | "mock",
-  analysisProvider: (process.env.ANALYSIS_PROVIDER || "anthropic") as "anthropic" | "heuristic",
+  // Padrões GRATUITOS: nada pago roda sem configuração explícita (ver ALLOW_PAID_PROVIDERS)
+  transcriptionProvider: (process.env.TRANSCRIPTION_PROVIDER || "local") as "local" | "groq" | "openai" | "mock",
+  analysisProvider: (process.env.ANALYSIS_PROVIDER || "heuristic") as "heuristic" | "gemini" | "groq" | "ollama" | "openai-compatible" | "anthropic",
 };

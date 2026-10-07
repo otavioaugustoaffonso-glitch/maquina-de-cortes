@@ -19,21 +19,25 @@ O usuário envia um vídeo → o sistema extrai o áudio, transcreve com timesta
 
 ## Stack
 
-Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · Supabase (Postgres, Auth, Storage, RLS) · FFmpeg · OpenCV · Anthropic Claude (análise) · OpenAI/Groq Whisper (transcrição).
+Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · Supabase (Postgres, Auth, Storage, RLS) · FFmpeg · OpenCV · faster-whisper/Groq/OpenAI (transcrição) · heurística/Gemini/Groq/Ollama/Claude (análise).
+
+## Custo zero por padrão
+
+A configuração padrão não usa nenhum serviço pago: Supabase local, transcrição local (faster-whisper) e análise heurística. Também há suporte a APIs com plano gratuito (Groq, Gemini) e a modelos locais (Ollama). OpenAI e Anthropic ficam **bloqueados** até `ALLOW_PAID_PROVIDERS=true`. Veja [docs/CUSTOS.md](docs/CUSTOS.md).
 
 ## Documentação
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — arquitetura, pipeline, score, modelo de dados, segurança, extensibilidade.
+- [docs/CUSTOS.md](docs/CUSTOS.md) — planos gratuitos, limites, custo por vídeo de 30 min e 1 h, alternativas open source.
 - [docs/SETUP.md](docs/SETUP.md) — passo a passo de cada serviço externo (onde criar conta, onde obter a chave, variáveis, custos e alternativas gratuitas), hospedagem e execução local.
 
 ## Início rápido
 
 ```bash
 npm install
-cp .env.example .env.local   # preencha Supabase + chaves de IA (veja docs/SETUP.md)
-cp .env.example .env         # mesmo conteúdo, usado pelo worker
-# aplique supabase/migrations/*.sql no seu projeto Supabase
-npm run fonts && pip install -r worker/requirements.txt
+pip install -r worker/requirements.txt && npm run fonts
+npx supabase start && npx supabase db reset   # Supabase local (Docker), aplica as migrations
+cp .env.example .env.local && cp .env.example .env   # cole a URL e as chaves impressas pelo supabase start
 npm run dev                  # app em http://localhost:3000
 npm run worker               # processamento (requer ffmpeg e python3)
 ```

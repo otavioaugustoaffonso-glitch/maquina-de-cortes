@@ -1,0 +1,18 @@
+# Configuração do Supabase LOCAL (custo zero) — usada por `npx supabase start` (requer Docker).
+# Valores omitidos usam os padrões da CLI. Docs: https://supabase.com/docs/guides/local-development
+project_id = "maquina-de-cortes"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback", "http://localhost:3000/auth/confirm"]
+
+[auth.email]
+enable_signup = true
+# localmente os e-mails (confirmação, recuperação de senha) ficam visíveis no painel de e-mails da CLI
+enable_confirmations = false
+
+[storage]
+enabled = true
+# Localmente não há o limite de 50 MB do plano Free hospedado: permite vídeos longos.
+file_size_limit = "10GiB"

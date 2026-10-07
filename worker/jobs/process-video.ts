@@ -239,7 +239,7 @@ async function analyze(video: VideoRow, t: TranscriptRow, duration: number, beat
   const analyzer = getClipAnalyzer();
   const project = (await must(db().from("projects").select("name").eq("id", video.project_id).single(), "carregar projeto")) as { name: string };
   const segments = t.segments.length ? t.segments : wordsToSegments(t.words);
-  const windows = splitTranscriptWindows(segments);
+  const windows = splitTranscriptWindows(segments, analyzer.maxTranscriptChars);
   const all: RawClipCandidate[] = [];
   const total = targetClipCount(duration);
 

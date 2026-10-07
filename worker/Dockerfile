@@ -24,7 +24,10 @@ RUN bash worker/fonts/download.sh && fc-cache -f
 
 ENV NODE_ENV=production \
     WORKER_FONTS_DIR=/app/worker/fonts \
-    WORKER_TMP_DIR=/tmp/maquina-de-cortes
+    WORKER_TMP_DIR=/tmp/maquina-de-cortes \
+    LOCAL_WHISPER_DIR=/models
+# Os modelos do faster-whisper são baixados na 1ª execução; monte um volume em /models para reaproveitar.
+VOLUME /models
 
 # Encerramento gracioso: o worker termina os jobs em andamento ao receber SIGTERM
 STOPSIGNAL SIGTERM
