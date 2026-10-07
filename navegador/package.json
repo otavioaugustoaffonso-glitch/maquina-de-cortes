@@ -11,6 +11,7 @@
     "@vladmandic/face-api": "^1.7.15",
     "fix-webm-duration": "^1.0.6",
     "jszip": "^3.10.1",
+    "mp4box": "^0.5.4",
     "onnxruntime-web": "1.31.0-dev.20260914-8d85527a0"
   }
 }

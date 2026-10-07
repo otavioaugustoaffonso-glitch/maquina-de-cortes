@@ -18,6 +18,7 @@ import { HeuristicAnalyzer } from "../../worker/ai/analysis/heuristic";
 import { buildUserPrompt, SYSTEM_PROMPT } from "../../worker/ai/analysis/prompt";
 import { ClipSchema } from "../../worker/ai/analysis/schema";
 import { detectFraming } from "./face";
+import { canStreamAudio, streamAudio } from "./audio";
 import { pickMimeType, renderClip, type Aspect, type LayoutMode } from "./render";
 import type { OutMsg } from "./worker";
 
@@ -43,6 +44,7 @@ type Clip = ClipCandidate & {
 
 type Settings = { language: string; preset: CaptionPresetId; aspect: Aspect; layout: LayoutMode; useClaude: boolean; autoRender: number };
 
+const TOUCH_DEVICE = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 const LANGS: Record<string, string | null> = { pt: "portuguese", en: "english", es: "spanish", auto: null };
 const MAX_FILE_BYTES = 2 * 1024 ** 3;
 
@@ -144,7 +146,27 @@ function loadVideo(file: File): Promise<void> {
   });
 }
 
+// Sem o caminho por partes, o arquivo inteiro vai para a memória: limite seguro por aparelho
+const WHOLE_FILE_LIMIT = (TOUCH_DEVICE ? 300 : 1200) * 1024 * 1024;
+
 async function decodeAudio(file: File): Promise<Float32Array> {
+  if (canStreamAudio(file)) {
+    try {
+      return await streamAudio(file, state.duration, (p) => setStep(1, p, "Extraindo o áudio..."));
+    } catch (e) {
+      console.warn("extração por partes falhou, tentando o método completo", e);
+    }
+  }
+  if (file.size > WHOLE_FILE_LIMIT) {
+    throw new Error(
+      `Este vídeo (${fmtBytes(file.size)}) é grande demais para este aparelho neste formato. ` +
+        "Use um vídeo MP4 ou MOV (o padrão da câmera do celular) ou exporte numa resolução menor (720p).",
+    );
+  }
+  return decodeWholeFile(file);
+}
+
+async function decodeWholeFile(file: File): Promise<Float32Array> {
   const buf = await file.arrayBuffer();
   const ctx = new OfflineAudioContext(1, 16000, 16000);
   let audio: AudioBuffer;
@@ -517,18 +539,16 @@ function renderSettings() {
   });
 }
 
-const TOUCH = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-
 function renderDrop() {
   const f = state.file;
   const busy = state.phase === "working";
   $("#drop-file").innerHTML = f
     ? `<strong>${esc(f.name)}</strong><span>${fmtBytes(f.size)}${state.duration ? ` · ${formatDuration(state.duration)}` : ""}</span>`
     : `<strong>Escolha o vídeo</strong><span>${
-        TOUCH ? "Toque no botão e pegue o vídeo da Galeria ou dos Arquivos do celular" : "Clique no botão ou arraste o vídeo para cá"
+        TOUCH_DEVICE ? "Toque no botão e pegue o vídeo da Galeria ou dos Arquivos do celular" : "Clique no botão ou arraste o vídeo para cá"
       } · MP4, MOV, WEBM · até 2 GB</span>`;
   const pick = $("#pick");
-  pick.textContent = f ? "Escolher outro vídeo" : TOUCH ? "Escolher vídeo do celular" : "Escolher vídeo dos arquivos";
+  pick.textContent = f ? "Escolher outro vídeo" : TOUCH_DEVICE ? "Escolher vídeo do celular" : "Escolher vídeo dos arquivos";
   pick.classList.toggle("disabled", busy);
   $<HTMLInputElement>("#file").disabled = busy;
   const go = $<HTMLButtonElement>("#go");
@@ -555,7 +575,7 @@ function renderProgress() {
   const done = state.phase === "done";
   el.innerHTML = `<p class="msg">${done ? "Pronto! Revise, ajuste e baixe os cortes." : esc(state.message)}</p>
     <ol class="steps">${items}</ol>
-    ${done ? "" : `<p class="hint">Deixe esta aba aberta e visível: a transcrição e a gravação acontecem no seu aparelho${TOUCH ? " (mantenha a tela ligada)" : ""}.</p>`}`;
+    ${done ? "" : `<p class="hint">Deixe esta aba aberta e visível: a transcrição e a gravação acontecem no seu aparelho${TOUCH_DEVICE ? " (mantenha a tela ligada)" : ""}.</p>`}`;
 }
 
 function clipCard(c: Clip) {
