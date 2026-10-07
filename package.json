@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:e2e": "tsx scripts/e2e-local.ts",
     "typecheck": "tsc --noEmit",
-    "fonts": "bash worker/fonts/download.sh"
+    "fonts": "node scripts/local/download-fonts.mjs",
+    "setup:local": "node scripts/local/setup.mjs",
+    "start:local": "node scripts/local/start.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

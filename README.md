@@ -1,5 +1,7 @@
 # Máquina de Cortes
 
+> **Quer só usar?** Siga o [COMO-USAR.md](COMO-USAR.md): instale 4 programas gratuitos, rode `instalar` e depois `iniciar`.
+
 Plataforma SaaS que transforma vídeos longos (podcasts, aulas, lives, entrevistas) em vários vídeos curtos prontos para **TikTok, Instagram Reels e YouTube Shorts**.
 
 O usuário envia um vídeo → o sistema extrai o áudio, transcreve com timestamps por palavra, usa IA para encontrar os melhores momentos, pontua cada um (0–100) e gera automaticamente cortes verticais 1080×1920 com legendas animadas, título na tela e thumbnail. Depois é só revisar, editar, aprovar e baixar (individualmente ou em .zip).

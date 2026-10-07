@@ -14,7 +14,11 @@ Tudo roda no seu computador com software open source. Não é preciso criar cont
 
 O Docker Desktop é gratuito para uso pessoal, educacional e empresas pequenas; confira os termos se sua empresa for grande. Alternativas totalmente livres: Docker Engine (Linux) ou Podman.
 
-## Passo a passo
+## Jeito mais fácil
+
+Rode `instalar.bat` (Windows) ou `./instalar.sh` (Mac/Linux) uma vez e depois `iniciar.bat` / `./iniciar.sh`. O instalador faz todos os passos abaixo sozinho, inclusive preencher o `.env`. Guia para leigos: [COMO-USAR.md](../COMO-USAR.md).
+
+## Passo a passo manual
 
 ```bash
 # 1. Dependências do projeto

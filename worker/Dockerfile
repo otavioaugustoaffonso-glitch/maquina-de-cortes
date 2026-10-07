@@ -20,7 +20,8 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY tsconfig.json ./
 COPY src/lib ./src/lib
 COPY worker ./worker
-RUN bash worker/fonts/download.sh && fc-cache -f
+COPY scripts/local/download-fonts.mjs scripts/local/download-fonts.mjs
+RUN node scripts/local/download-fonts.mjs && fc-cache -f
 
 ENV NODE_ENV=production \
     WORKER_FONTS_DIR=/app/worker/fonts \

@@ -1,0 +1,1 @@
+-- Dados iniciais (vazio). Arquivo esperado pelo `supabase db reset`.
