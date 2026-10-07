@@ -463,8 +463,14 @@ export function ClipEditor({
                     value={title}
                     maxLength={140}
                     onChange={(e) => {
+                      // Mantém o título na tela sincronizado enquanto o usuário não o personalizar
+                      if (!titleOnScreen.trim() || titleOnScreen === title.slice(0, 80)) {
+                        setTitleOnScreen(e.target.value.slice(0, 80));
+                        mark(showTitle);
+                      } else {
+                        mark(false);
+                      }
                       setTitle(e.target.value);
-                      mark(false);
                     }}
                   />
                 </div>
